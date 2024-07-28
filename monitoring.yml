@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: prometheus
+  labels:
+    app: monitoring
+spec:
+  containers:
+  - name: prometheus
+    image: prom/prometheus
+    args:
+    - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+    - containerPort: 9090
+    volumeMounts:
+    - name: prometheus-config
+      mountPath: /etc/prometheus
+  volumes:
+  - name: prometheus-config
+    configMap:
+      name: prometheus-config
+      
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grafana
+  labels:
+    app: monitoring
+spec:
+  containers:
+  - name: grafana
+    image: grafana/grafana:7.5.7
+    ports:
+    - containerPort: 3000
+    
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: wordpress
+  labels:
+    app: monitoring
+spec:
+  initContainers:
+  - name: init-copy-file
+    image: busybox
+    command: ['sh', '-c', 'cp /opt/node_exporter-1.1.2.linux-amd64.tar.gz /root/node_exporter-1.1.2.linux-amd64.tar.gz']
+    volumeMounts:
+    - name: host-volume
+      mountPath: /opt
+    - name: root-volume
+      mountPath: /root
+  containers:
+  - name: wordpress
+    image: wordpress:php8.0-apache
+    ports:
+    - containerPort: 80
+  - name: node-exporter
+    image: debian:11
+    command: ['sh', '-c', 'tar xvzf /root/node_exporter-1.1.2.linux-amd64.tar.gz -C /root && /root/node_exporter-1.1.2.linux-amd64/node_exporter']
+    volumeMounts:
+    - name: root-volume
+      mountPath: /root
+    ports:
+    - containerPort: 9100
+  volumes:
+  - name: host-volume
+    hostPath:
+      path: /home/ec2-user/work/prometheus
+  - name: root-volume
+    emptyDir: {}
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cadvisor
+  labels:
+    app: monitoring
+spec:
+  containers:
+  - name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:latest
+    ports:
+    - containerPort: 8080
+
